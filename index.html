@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chess vs Shreyas Bot & Pass-and-Play</title>
+<title>Chess vs Shreyas Bot (Ultra-Fast Engine)</title>
 
 <!-- Chess.js library CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -267,11 +267,11 @@ kbd {
 
     <label for="elo">Bot Speed/Strength:</label>
     <select id="elo">
-        <option value="1600">1600 (Fast)</option>
-        <option value="1800">1800 (Fast)</option>
-        <option value="2000" selected>2000 (Medium)</option>
-        <option value="2200">2200 (Strong)</option>
-        <option value="max">Maximum</option>
+        <option value="1600">1600 (Instant)</option>
+        <option value="1800">1800 (Instant)</option>
+        <option value="2000" selected>2000 (Fast)</option>
+        <option value="2200">2200 (Normal)</option>
+        <option value="max">Maximum Speed</option>
     </select>
 </div>
 
@@ -306,7 +306,7 @@ kbd {
 </div>
 
 <script>
-// Reliable Realistic Chess Piece Set CDN
+// Reliable Chess Piece Images CDN
 const pieceImages = {
     wK: "https://chessboardjs.com/img/chesspieces/wikipedia/wK.png",
     wQ: "https://chessboardjs.com/img/chesspieces/wikipedia/wQ.png",
@@ -342,15 +342,12 @@ let engineReady = false;
 let lastMove = null;
 let moveHistoryData = [];
 
-// Mobile & Desktop compatible Engine Loader
+// Lightweight Direct Web Worker CDN initialization
 let engine;
 function initEngine() {
     try {
-        const workerCode = `
-            importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
-        `;
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        engine = new Worker(URL.createObjectURL(blob));
+        // Direct CDN loading for standard Worker cross-device speed
+        engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js');
 
         engine.onmessage = function(event) {
             const line = String(event.data || "").trim();
@@ -411,14 +408,15 @@ function initEngine() {
         };
 
         engine.onerror = function() {
+            // Instant engine fallback
             engineReady = true;
-            statusEl.textContent = "Engine offline. Play in Pass & Play mode.";
+            statusEl.textContent = "Engine Offline - Switch to Pass & Play mode.";
         };
 
         engine.postMessage("uci");
     } catch (e) {
         engineReady = true;
-        statusEl.textContent = "Engine worker restricted.";
+        statusEl.textContent = "Engine Restricted.";
     }
 }
 
@@ -527,14 +525,14 @@ function clickSquare(square) {
     draw();
 }
 
-// FAST BOT MOVE REQUEST (Reduced search time to 300ms)
+// ULTRA FAST BOT MOVE CALCULATOR (capped at 150ms / depth 8)
 function requestBotMove() {
     if (!engineReady || game.game_over() || isPassAndPlay || game.turn() === userColor) {
         return;
     }
 
     thinking = true;
-    statusEl.textContent = "Bot is thinking fast...";
+    statusEl.textContent = "Bot thinking (Instant)...";
 
     const strength = eloEl.value;
     if (strength === "max") {
@@ -552,8 +550,9 @@ function requestBotMove() {
 
         if (!thinking || game.game_over()) return;
         engine.postMessage("position fen " + game.fen());
-        // Fast play movetime set to 300ms
-        engine.postMessage("go movetime 300");
+        
+        // Strict depth limit combined with maximum 150ms response limit
+        engine.postMessage("go movetime 150 depth 8");
     };
 
     engine.addEventListener("message", startSearch);
@@ -615,7 +614,7 @@ function updateStatus() {
         statusEl.textContent = "Game Draw!";
         return;
     }
-    if (thinking) { statusEl.textContent = "Bot is thinking fast..."; return; }
+    if (thinking) { statusEl.textContent = "Bot thinking (Instant)..."; return; }
     if (!engineReady) { statusEl.textContent = "Loading engine..."; return; }
     
     if (isPassAndPlay) {
