@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chess vs Shreyas Bot</title>
+<title>Chess vs Shreyas Bot (Realistic Pieces)</title>
 
 <!-- Chess.js library CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -19,26 +19,27 @@ body {
     min-height: 100vh;
     margin: 0;
     padding: 15px;
-    background: #1a1a1a;
+    background: #111;
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     gap: 12px;
 }
 
-h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
+h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
 
 #board-container {
-    perspective: 1000px;
+    perspective: 1200px; /* Enhanced perspective for 3D view */
     padding: 15px;
 }
 
 #board {
     display: grid;
-    grid-template-columns: repeat(8, min(10.5vw, 66px));
-    grid-template-rows: repeat(8, min(10.5vw, 66px));
-    border: 4px solid #fff;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    grid-template-columns: repeat(8, min(10.5vw, 68px));
+    grid-template-rows: repeat(8, min(10.5vw, 68px));
+    border: 5px solid #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+    transform-style: preserve-3d;
 }
 
 /* --- VIEW MODES --- */
@@ -47,21 +48,17 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
     transform: rotateX(0deg);
 }
 
-/* 3D Board Perspective */
+/* 3D Board Perspective - Refined for realistic pieces */
 .mode-3d {
-    transform: rotateX(32deg) rotateZ(0deg);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 15px 15px rgba(0, 0, 0, 0.5);
-    border-bottom: 12px solid #333 !important;
+    transform: rotateX(30deg) rotateZ(0deg);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9), 0 15px 15px rgba(0, 0, 0, 0.6);
+    border-bottom: 15px solid #444 !important;
 }
 
-.mode-3d .sq {
-    transform-style: preserve-3d;
-}
-
-.mode-3d .white-p, .mode-3d .black-p {
-    transform: translateZ(10px) rotateX(-15deg);
-    text-shadow: 0 8px 10px rgba(0,0,0,0.6);
-    display: inline-block;
+/* Rotate pieces back so they don't look flat in 3D mode */
+.mode-3d .piece {
+    transform: rotateX(-30deg) translateZ(5px);
+    transform-origin: bottom center;
 }
 
 /* Classic Normal */
@@ -75,9 +72,9 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
     justify-content: center;
     align-items: center;
     position: relative;
-    font-size: clamp(27px, 7vw, 43px);
     cursor: pointer;
     user-select: none;
+    transition: background 0.2s ease;
 }
 
 /* Themes */
@@ -93,35 +90,36 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
 .theme-gray .light { background: #e0e0e0; }
 .theme-gray .dark { background: #666666; }
 
-.white-p {
-    color: white;
-    text-shadow: 0 0 3px black;
+/* Piece Image Styling */
+.piece {
+    width: 90%;
+    height: 90%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    pointer-events: none; /* Let clicks pass through to the square */
 }
 
-.black-p {
-    color: black;
-    text-shadow: 0 0 2px white;
-}
-
-.selected { box-shadow: inset 0 0 0 4px #829769; }
+/* Square Highlight Effects */
+.selected { background-color: rgba(255, 255, 100, 0.5) !important; }
 
 .last-move {
-    background-image: linear-gradient(#baca4488, #baca4488);
+    background-color: rgba(155, 199, 0, 0.5) !important;
 }
 
 .dot {
     position: absolute;
-    width: 17%;
-    height: 17%;
+    width: 25%;
+    height: 25%;
     border-radius: 50%;
-    background: #526b4b99;
+    background: rgba(0, 0, 0, 0.3);
     pointer-events: none;
 }
 
 .capture-dot {
     position: absolute;
-    inset: 4px;
-    border: 4px solid #526b4b99;
+    inset: 10%;
+    border: 5px solid rgba(0, 0, 0, 0.2);
     border-radius: 50%;
     pointer-events: none;
 }
@@ -130,6 +128,7 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
     min-height: 24px;
     text-align: center;
     font-weight: bold;
+    color: #ccc;
 }
 
 #controls {
@@ -138,6 +137,9 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
     align-items: center;
     justify-content: center;
     gap: 10px;
+    padding: 10px;
+    background: #222;
+    border-radius: 8px;
 }
 
 button, select {
@@ -146,36 +148,40 @@ button, select {
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
-    background: #333;
+    background: #444;
     color: white;
+    font-size: 14px;
+    transition: background 0.2s ease;
 }
 
 button:hover, select:hover {
-    background: #444;
+    background: #555;
 }
 
 #newGame {
-    background: #2563eb;
+    background: #e67e22; /* Orange color */
+    color: white;
 }
 
 #newGame:hover {
-    background: #1d4ed8;
+    background: #d35400;
 }
 
 #hint {
     max-width: 520px;
-    color: #ddd;
+    color: #aaa;
     text-align: center;
     font-size: 13px;
     line-height: 1.5;
 }
 
 kbd {
-    background: #444;
+    background: #333;
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid #666;
+    border: 1px solid #555;
     font-family: monospace;
+    color: #eee;
 }
 </style>
 </head>
@@ -185,7 +191,7 @@ kbd {
 <h2>Chess vs Shreyas Bot</h2>
 
 <div id="board-container">
-    <div id="board" class="theme-wood mode-2d"></div>
+    <div id="board" class="theme-wood mode-3d"></div> <!-- Defaults to 3D now for impact -->
 </div>
 
 <div id="status">Loading chess engine...</div>
@@ -195,8 +201,8 @@ kbd {
     
     <label for="boardMode">View:</label>
     <select id="boardMode">
-        <option value="mode-2d" selected>2D Modern</option>
-        <option value="mode-3d">3D Board</option>
+        <option value="mode-2d">2D Modern</option>
+        <option value="mode-3d" selected>3D Board</option>
         <option value="mode-classic">Classic Normal</option>
     </select>
 
@@ -226,15 +232,17 @@ kbd {
 
 <div id="hint">
     Press <kbd>←</kbd> (Left Arrow) to undo move | Press <kbd>X</kbd> to flip board<br>
-    Powered by Sai Shreyas Adepu
+    Realistic piece set | Powered by Sai Shreyas Adepu
 </div>
 
 <script>
-const symbols = {
-    wK: "♔", wQ: "♕", wR: "♖",
-    wB: "♗", wN: "♘", wP: "♙",
-    bK: "♚", bQ: "♛", bR: "♜",
-    bB: "♝", bN: "♞", bP: "♟"
+// Base URL for realistic piece images (Neo wood style)
+const pieceImageUrl = 'https://upload.wikimedia.org/wikipedia/commons/';
+const pieceImages = {
+    wK: '4/42/Chess_klt45.svg', wQ: '4/49/Chess_qlt45.svg', wR: '7/72/Chess_rlt45.svg',
+    wB: 'b/b1/Chess_blt45.svg', wN: '7/70/Chess_nlt45.svg', wP: '4/45/Chess_plt45.svg',
+    bK: 'f/f0/Chess_kdt45.svg', bQ: '4/47/Chess_qdt45.svg', bR: 'f/ff/Chess_rdt45.svg',
+    bB: '9/98/Chess_ddt45.svg', bN: 'e/ef/Chess_ndt45.svg', bP: 'c/c7/Chess_pdt45.svg'
 };
 
 const game = new Chess();
@@ -255,7 +263,7 @@ let engineReady = false;
 let lastMove = null;
 let searchId = 0;
 
-// Initialize Stockfish worker cleanly
+// Initialize Stockfish worker efficiently
 let engine;
 function initEngine() {
     try {
@@ -322,12 +330,12 @@ function initEngine() {
 
         engine.onerror = function(err) {
             console.error(err);
-            statusEl.textContent = "Engine failed to load. Check internet connection.";
+            statusEl.textContent = "Engine failed. Check Internet connection.";
         };
 
         engine.postMessage("uci");
     } catch (e) {
-        statusEl.textContent = "Engine restriction error.";
+        statusEl.textContent = "Browser restriction error loading engine.";
     }
 }
 
@@ -349,10 +357,10 @@ function draw() {
 
             if (piece) {
                 const key = piece.color + piece.type.toUpperCase();
-                const pieceSpan = document.createElement("span");
-                pieceSpan.textContent = symbols[key];
-                pieceSpan.className = piece.color === "w" ? "white-p" : "black-p";
-                square.appendChild(pieceSpan);
+                const pieceImg = document.createElement("div");
+                pieceImg.className = "piece";
+                pieceImg.style.backgroundImage = `url('${pieceImageUrl}${pieceImages[key]}')`;
+                square.appendChild(pieceImg);
             }
 
             if (selected === name) {
@@ -486,7 +494,7 @@ function undoMove() {
     draw();
     updateStatus();
 
-    if (game.turn() !== userColor && !game.game_over()) {
+    if (game.turn() !== userColor && !game.isGameOver()) {
         requestBotMove();
     }
 }
