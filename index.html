@@ -120,7 +120,12 @@ button, select {
 
 <div id="controls">
     <button id="newGame">New Game</button>
-    <label for="elo">My Bot Strength:</label>
+    <label for="userColor">Play as:</label>
+    <select id="userColor">
+        <option value="w" selected>White</option>
+        <option value="b">Black</option>
+    </select>
+    <label for="elo">Bot Strength:</label>
     <select id="elo">
         <option value="1600">1600</option>
         <option value="1800">1800</option>
@@ -130,7 +135,7 @@ button, select {
     </select>
 </div>
 
-<div id="hint">
+<div id="hint" id="hintText">
     You play White. The bot plays Black.<br>
     Powered by Sai Shreyas Adepu
 </div>
@@ -150,7 +155,9 @@ const game = new Chess();
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const eloEl = document.getElementById("elo");
+const userColorEl = document.getElementById("userColor");
 
+let userColor = "w"; // 'w' for White, 'b' for Black
 let selected = null;
 let validMoves = [];
 let thinking = false;
@@ -180,6 +187,9 @@ async function initEngine() {
             if (line === "readyok") {
                 engineReady = true;
                 updateStatus();
+                if (game.turn() !== userColor) {
+                    requestBotMove();
+                }
                 return;
             }
 
@@ -238,6 +248,10 @@ async function initEngine() {
 initEngine();
 
 function squareName(row, col) {
+    if (userColor === "b") {
+        // Reverse row and col for black perspective
+        return "abcdefgh"[7 - col] + String(row + 1);
+    }
     return "abcdefgh"[col] + String(8 - row);
 }
 
@@ -245,9 +259,11 @@ function draw() {
     boardEl.innerHTML = "";
     const position = game.board();
 
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const name = squareName(row, col);
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const row = userColor === "b" ? 7 - r : r;
+            const col = userColor === "b" ? 7 - c : c;
+            const name = "abcdefgh"[col] + String(8 - row);
             const piece = position[row][col];
 
             const square = document.createElement("div");
@@ -284,7 +300,7 @@ function draw() {
 }
 
 function clickSquare(square) {
-    if (thinking || !engineReady || game.isGameOver() || game.turn() !== "w") {
+    if (thinking || !engineReady || game.isGameOver() || game.turn() !== userColor) {
         return;
     }
 
@@ -294,7 +310,9 @@ function clickSquare(square) {
         const movingPiece = game.get(selected);
         const move = { from: selected, to: square };
 
-        if (movingPiece && movingPiece.type === "p" && square[1] === "8") {
+        // Pawn promotion auto-queen logic based on square rank
+        const promoRank = userColor === "w" ? "8" : "1";
+        if (movingPiece && movingPiece.type === "p" && square[1] === promoRank) {
             move.promotion = "q";
         }
 
@@ -322,7 +340,7 @@ function clickSquare(square) {
     }
 
     const piece = game.get(square);
-    if (piece && piece.color === "w") {
+    if (piece && piece.color === userColor) {
         selected = square;
         validMoves = game.moves({ square: square, verbose: true });
     } else {
@@ -334,7 +352,7 @@ function clickSquare(square) {
 }
 
 function requestBotMove() {
-    if (!engineReady || game.isGameOver() || game.turn() !== "b") {
+    if (!engineReady || game.isGameOver() || game.turn() === userColor) {
         return;
     }
 
@@ -366,7 +384,7 @@ function requestBotMove() {
 
 function updateStatus() {
     if (game.isCheckmate()) {
-        statusEl.textContent = game.turn() === "w" ? "Checkmate! The bot wins." : "Checkmate! You win!";
+        statusEl.textContent = game.turn() === userColor ? "Checkmate! The bot wins." : "Checkmate! You win!";
         return;
     }
     if (game.isStalemate()) { statusEl.textContent = "Draw by stalemate."; return; }
@@ -376,23 +394,32 @@ function updateStatus() {
     if (thinking) { statusEl.textContent = "Bot is thinking..."; return; }
     if (!engineReady) { statusEl.textContent = "Loading chess engine..."; return; }
     if (game.isCheck()) {
-        statusEl.textContent = game.turn() === "w" ? "Your king is in check!" : "The bot's king is in check!";
+        statusEl.textContent = game.turn() === userColor ? "Your king is in check!" : "The bot's king is in check!";
         return;
     }
-    statusEl.textContent = game.turn() === "w" ? "Your turn (White)" : "Bot's turn (Black)";
+    statusEl.textContent = game.turn() === userColor ? `Your turn (${userColor === 'w' ? 'White' : 'Black'})` : "Bot's turn";
 }
 
-document.getElementById("newGame").addEventListener("click", function() {
+function resetGame() {
+    userColor = userColorEl.value;
     thinking = false;
     searchId++;
-    if(engineReady) engine.postMessage("stop");
+    if (engineReady) engine.postMessage("stop");
     game.reset();
     selected = null;
     validMoves = [];
     lastMove = null;
     draw();
     updateStatus();
-});
+
+    // If user selected Black, the bot (White) plays first automatically
+    if (userColor === "b" && engineReady) {
+        requestBotMove();
+    }
+}
+
+document.getElementById("newGame").addEventListener("click", resetGame);
+userColorEl.addEventListener("change", resetGame);
 
 eloEl.addEventListener("change", function() {
     updateStatus();
