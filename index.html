@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess vs Computer Bot</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 15px;
+    background: #222;
+    color: white;
+    font-family: Arial, sans-serif;
+    gap: 12px;
+}
+
+h2 { margin: 0; }
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, min(10.5vw, 66px));
+    grid-template-rows: repeat(8, min(10.5vw, 66px));
+    border: 4px solid white;
+    box-shadow: 0 10px 25px #0008;
+}
+
+.sq {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    font-size: clamp(27px, 7vw, 43px);
+    cursor: pointer;
+    user-select: none;
+}
+
+.light { background: #f0d9b5; }
+.dark { background: #b58863; }
+
+.white-p {
+    color: white;
+    text-shadow: 0 0 3px black;
+}
+
+.black-p {
+    color: black;
+    text-shadow: 0 0 2px white;
+}
+
+.selected { box-shadow: inset 0 0 0 4px #829769; }
+
+.last-move {
+    background-image: linear-gradient(#baca4488, #baca4488);
+}
+
+.dot {
+    position: absolute;
+    width: 17%;
+    height: 17%;
+    border-radius: 50%;
+    background: #526b4b99;
+    pointer-events: none;
+}
+
+.capture-dot {
+    position: absolute;
+    inset: 4px;
+    border: 4px solid #526b4b99;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+#status {
+    min-height: 24px;
+    text-align: center;
+    font-weight: bold;
+}
+
+#controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+button, select {
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#hint {
+    max-width: 520px;
+    color: #ddd;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.5;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Chess vs Computer Bot</h2>
+
+<div id="board"></div>
+
+<div id="status">Loading chess engine...</div>
+
+<div id="controls">
+    <button id="newGame">New Game</button>
+    <label for="elo">Bot Strength:</label>
+    <select id="elo">
+        <option value="1600">1600</option>
+        <option value="1800">1800</option>
+        <option value="2000" selected>2000</option>
+        <option value="2200">2200</option>
+        <option value="max">Maximum</option>
+    </select>
+</div>
+
+<div id="hint">
+    You play White. The bot plays Black.<br>
+    Powered by chess.js and Stockfish via CDN.
+</div>
+
+<script type="module">
+import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
+
+const symbols = {
+    wK: "♔", wQ: "♕", wR: "♖",
+    wB: "♗", wN: "♘", wP: "♙",
+    bK: "♚", bQ: "♛", bR: "♜",
+    bB: "♝", bN: "♞", bP: "♟"
+};
+
+const game = new Chess();
+
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const eloEl = document.getElementById("elo");
+
+let selected = null;
+let validMoves = [];
+let thinking = false;
+let engineReady = false;
+let lastMove = null;
+let searchId = 0;
+
+// Load Stockfish dynamically from CDN using a worker Blob to bypass local CORS rules
+let engine;
+async function initEngine() {
+    try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js");
+        const stockfishCode = await response.text();
+        const blob = new Blob([stockfishCode], { type: "application/javascript" });
+        engine = new Worker(URL.createObjectURL(blob));
+
+        engine.onmessage = function(event) {
+            const line = String(event.data || "").trim();
+
+            if (line === "uciok") {
+                engine.postMessage("setoption name UCI_LimitStrength value true");
+                engine.postMessage("setoption name UCI_Elo value 2000");
+                engine.postMessage("isready");
+                return;
+            }
+
+            if (line === "readyok") {
+                engineReady = true;
+                updateStatus();
+                return;
+            }
+
+            if (line.startsWith("bestmove ")) {
+                const moveText = line.split(/\s+/)[1];
+
+                if (!thinking) return;
+
+                if (!moveText || moveText === "(none)") {
+                    thinking = false;
+                    updateStatus();
+                    return;
+                }
+
+                const move = {
+                    from: moveText.slice(0, 2),
+                    to: moveText.slice(2, 4)
+                };
+
+                if (moveText.length >= 5) {
+                    move.promotion = moveText[4].toLowerCase();
+                }
+
+                try {
+                    const played = game.move(move);
+                    if (played) {
+                        lastMove = {
+                            from: played.from,
+                            to: played.to
+                        };
+                    }
+                } catch (error) {
+                    console.error("Invalid engine move:", error);
+                }
+
+                thinking = false;
+                selected = null;
+                validMoves = [];
+
+                draw();
+                updateStatus();
+            }
+        };
+
+        engine.onerror = function(err) {
+            console.error(err);
+            statusEl.textContent = "Engine failed to load. Check your internet connection.";
+        };
+
+        engine.postMessage("uci");
+    } catch (e) {
+        statusEl.textContent = "Engine failed to load. CDN access restricted.";
+    }
+}
+
+initEngine();
+
+function squareName(row, col) {
+    return "abcdefgh"[col] + String(8 - row);
+}
+
+function draw() {
+    boardEl.innerHTML = "";
+    const position = game.board();
+
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const name = squareName(row, col);
+            const piece = position[row][col];
+
+            const square = document.createElement("div");
+            square.className = "sq " + ((row + col) % 2 === 0 ? "light" : "dark");
+
+            if (piece) {
+                const key = piece.color + piece.type.toUpperCase();
+                square.textContent = symbols[key];
+                square.classList.add(piece.color === "w" ? "white-p" : "black-p");
+            }
+
+            if (selected === name) {
+                square.classList.add("selected");
+            }
+
+            if (lastMove && (lastMove.from === name || lastMove.to === name)) {
+                square.classList.add("last-move");
+            }
+
+            const destination = validMoves.find(move => move.to === name);
+            if (destination) {
+                const marker = document.createElement("div");
+                marker.className = piece ? "capture-dot" : "dot";
+                square.appendChild(marker);
+            }
+
+            square.addEventListener("click", function() {
+                clickSquare(name);
+            });
+
+            boardEl.appendChild(square);
+        }
+    }
+}
+
+function clickSquare(square) {
+    if (thinking || !engineReady || game.isGameOver() || game.turn() !== "w") {
+        return;
+    }
+
+    const chosenMove = validMoves.find(move => move.to === square);
+
+    if (selected && chosenMove) {
+        const movingPiece = game.get(selected);
+        const move = { from: selected, to: square };
+
+        if (movingPiece && movingPiece.type === "p" && square[1] === "8") {
+            move.promotion = "q";
+        }
+
+        try {
+            const played = game.move(move);
+            lastMove = { from: played.from, to: played.to };
+        } catch (error) {
+            selected = null;
+            validMoves = [];
+            draw();
+            return;
+        }
+
+        selected = null;
+        validMoves = [];
+
+        draw();
+        updateStatus();
+
+        if (!game.isGameOver()) {
+            requestBotMove();
+        }
+
+        return;
+    }
+
+    const piece = game.get(square);
+    if (piece && piece.color === "w") {
+        selected = square;
+        validMoves = game.moves({ square: square, verbose: true });
+    } else {
+        selected = null;
+        validMoves = [];
+    }
+
+    draw();
+}
+
+function requestBotMove() {
+    if (!engineReady || game.isGameOver() || game.turn() !== "b") {
+        return;
+    }
+
+    thinking = true;
+    searchId++;
+    statusEl.textContent = "Bot is thinking...";
+
+    const strength = eloEl.value;
+    if (strength === "max") {
+        engine.postMessage("setoption name UCI_LimitStrength value false");
+    } else {
+        engine.postMessage("setoption name UCI_LimitStrength value true");
+        engine.postMessage("setoption name UCI_Elo value " + strength);
+    }
+
+    engine.postMessage("isready");
+
+    const startSearch = function(event) {
+        if (String(event.data || "").trim() !== "readyok") return;
+        engine.removeEventListener("message", startSearch);
+
+        if (!thinking || game.isGameOver()) return;
+        engine.postMessage("position fen " + game.fen());
+        engine.postMessage("go movetime 1500");
+    };
+
+    engine.addEventListener("message", startSearch);
+}
+
+function updateStatus() {
+    if (game.isCheckmate()) {
+        statusEl.textContent = game.turn() === "w" ? "Checkmate! The bot wins." : "Checkmate! You win!";
+        return;
+    }
+    if (game.isStalemate()) { statusEl.textContent = "Draw by stalemate."; return; }
+    if (game.isThreefoldRepetition()) { statusEl.textContent = "Draw by threefold repetition."; return; }
+    if (game.isInsufficientMaterial()) { statusEl.textContent = "Draw: insufficient material."; return; }
+    if (game.isDraw()) { statusEl.textContent = "The game is a draw."; return; }
+    if (thinking) { statusEl.textContent = "Bot is thinking..."; return; }
+    if (!engineReady) { statusEl.textContent = "Loading chess engine..."; return; }
+    if (game.isCheck()) {
+        statusEl.textContent = game.turn() === "w" ? "Your king is in check!" : "The bot's king is in check!";
+        return;
+    }
+    statusEl.textContent = game.turn() === "w" ? "Your turn (White)" : "Bot's turn (Black)";
+}
+
+document.getElementById("newGame").addEventListener("click", function() {
+    thinking = false;
+    searchId++;
+    if(engineReady) engine.postMessage("stop");
+    game.reset();
+    selected = null;
+    validMoves = [];
+    lastMove = null;
+    draw();
+    updateStatus();
+});
+
+eloEl.addEventListener("change", function() {
+    updateStatus();
+});
+
+draw();
+updateStatus();
+</script>
+
+</body>
+</html>
