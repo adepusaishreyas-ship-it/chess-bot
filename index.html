@@ -28,7 +28,7 @@ body {
 h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
 
 #board-container {
-    perspective: 1200px; /* Enhanced perspective for 3D view */
+    perspective: 1200px;
     padding: 15px;
 }
 
@@ -48,14 +48,13 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     transform: rotateX(0deg);
 }
 
-/* 3D Board Perspective - Refined for realistic pieces */
+/* 3D Board Perspective */
 .mode-3d {
     transform: rotateX(30deg) rotateZ(0deg);
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9), 0 15px 15px rgba(0, 0, 0, 0.6);
     border-bottom: 15px solid #444 !important;
 }
 
-/* Rotate pieces back so they don't look flat in 3D mode */
 .mode-3d .piece {
     transform: rotateX(-30deg) translateZ(5px);
     transform-origin: bottom center;
@@ -74,7 +73,6 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     position: relative;
     cursor: pointer;
     user-select: none;
-    transition: background 0.2s ease;
 }
 
 /* Themes */
@@ -97,10 +95,10 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    pointer-events: none; /* Let clicks pass through to the square */
+    pointer-events: none;
 }
 
-/* Square Highlight Effects */
+/* Highlights */
 .selected { background-color: rgba(255, 255, 100, 0.5) !important; }
 
 .last-move {
@@ -159,7 +157,7 @@ button:hover, select:hover {
 }
 
 #newGame {
-    background: #e67e22; /* Orange color */
+    background: #e67e22;
     color: white;
 }
 
@@ -191,7 +189,7 @@ kbd {
 <h2>Chess vs Shreyas Bot</h2>
 
 <div id="board-container">
-    <div id="board" class="theme-wood mode-3d"></div> <!-- Defaults to 3D now for impact -->
+    <div id="board" class="theme-wood mode-3d"></div>
 </div>
 
 <div id="status">Loading chess engine...</div>
@@ -236,13 +234,13 @@ kbd {
 </div>
 
 <script>
-// Base URL for realistic piece images (Neo wood style)
+// High-resolution SVG Piece URLs
 const pieceImageUrl = 'https://upload.wikimedia.org/wikipedia/commons/';
 const pieceImages = {
     wK: '4/42/Chess_klt45.svg', wQ: '4/49/Chess_qlt45.svg', wR: '7/72/Chess_rlt45.svg',
     wB: 'b/b1/Chess_blt45.svg', wN: '7/70/Chess_nlt45.svg', wP: '4/45/Chess_plt45.svg',
     bK: 'f/f0/Chess_kdt45.svg', bQ: '4/47/Chess_qdt45.svg', bR: 'f/ff/Chess_rdt45.svg',
-    bB: '9/98/Chess_ddt45.svg', bN: 'e/ef/Chess_ndt45.svg', bP: 'c/c7/Chess_pdt45.svg'
+    bB: '9/9b/Chess_bdt45.svg', bN: 'e/ef/Chess_ndt45.svg', bP: 'c/c7/Chess_pdt45.svg'
 };
 
 const game = new Chess();
@@ -263,7 +261,6 @@ let engineReady = false;
 let lastMove = null;
 let searchId = 0;
 
-// Initialize Stockfish worker efficiently
 let engine;
 function initEngine() {
     try {
@@ -330,12 +327,12 @@ function initEngine() {
 
         engine.onerror = function(err) {
             console.error(err);
-            statusEl.textContent = "Engine failed. Check Internet connection.";
+            statusEl.textContent = "Engine failed to load. Check Internet connection.";
         };
 
         engine.postMessage("uci");
     } catch (e) {
-        statusEl.textContent = "Browser restriction error loading engine.";
+        statusEl.textContent = "Engine loading error.";
     }
 }
 
@@ -494,7 +491,7 @@ function undoMove() {
     draw();
     updateStatus();
 
-    if (game.turn() !== userColor && !game.isGameOver()) {
+    if (game.turn() !== userColor && !game.game_over()) {
         requestBotMove();
     }
 }
