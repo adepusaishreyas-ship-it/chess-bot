@@ -453,7 +453,7 @@ let engineReady = false;
 let lastMove = null;
 let moveHistoryData = [];
 
-// Lightweight Engine
+// Clean Web Worker Engine Setup
 let engine;
 function initEngine() {
     try {
@@ -500,7 +500,7 @@ function initEngine() {
                     move.promotion = moveText[4].toLowerCase();
                 }
 
-                // Add a smooth human thinking delay (between 1.2s to 2.5s maximum)
+                // Smooth delay so the bot move appears within ~1.2s to 2.0s
                 setTimeout(() => {
                     try {
                         const played = game.move(move);
@@ -518,7 +518,7 @@ function initEngine() {
 
                     draw();
                     updateStatus();
-                }, 1200);
+                }, 800);
             }
         };
 
@@ -632,7 +632,7 @@ function clickSquare(square) {
     draw();
 }
 
-// FAST 1.2s SEARCH REASONING
+// FAST OPTIMIZED ENGINE REQUEST (Capped strictly at 800ms)
 function requestBotMove() {
     if (!engineReady || game.game_over() || isPassAndPlay || game.turn() === userColor) {
         return;
@@ -657,7 +657,9 @@ function requestBotMove() {
 
         if (!thinking || game.game_over()) return;
         engine.postMessage("position fen " + game.fen());
-        engine.postMessage("go movetime 1200");
+        
+        // Strict computation timeout and depth boundary
+        engine.postMessage("go movetime 800 depth 10");
     };
 
     engine.addEventListener("message", startSearch);
@@ -764,7 +766,7 @@ function updateBoardClasses() {
     boardEl.className = `${boardThemeEl.value} ${boardModeEl.value}`;
 }
 
-// REAL ACCURATE POSITIONAL CHESS EVALUATOR (Chess.com Replica)
+// POSITIONAL CHESS EVALUATOR
 function openReview() {
     if (moveHistoryData.length === 0) return;
 
@@ -778,7 +780,6 @@ function openReview() {
         let tag = "Best";
         let tagColor = "#81b64c";
 
-        // Deep evaluation criteria
         const isCapture = mv.captured;
         const isCheck = mv.san.includes("+") || mv.san.includes("#");
         const isPawnPromotion = mv.promotion;
@@ -803,7 +804,6 @@ function openReview() {
             tag = "Best";
             tagColor = "#81b64c";
         } else {
-            // Positional balancing
             const rand = (index * 7 + mv.from.charCodeAt(0)) % 10;
             if (rand > 6) {
                 best++;
@@ -824,7 +824,6 @@ function openReview() {
             }
         }
 
-        // Render Move Row
         const row = document.createElement("div");
         row.className = "move-row";
         row.innerHTML = `
