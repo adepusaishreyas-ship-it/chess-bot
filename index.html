@@ -72,13 +72,12 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     user-select: none;
 }
 
-/* Piece SVG Styles for Chess.com Realistic Look */
+/* Piece Image Styles */
 .sq img {
     width: 85%;
     height: 85%;
     object-fit: contain;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
-    transition: transform 0.15 ease;
 }
 
 /* Themes */
@@ -223,20 +222,20 @@ kbd {
 </div>
 
 <script>
-// Vector SVG Pieces for Realistic Chess.com Look
+// Reliable Realistic Chess Piece URLs
 const pieceImages = {
-    wK: "https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg",
-    wQ: "https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg",
-    wR: "https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg",
-    wB: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg",
-    wN: "https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg",
-    wP: "https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg",
-    bK: "https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg",
-    bQ: "https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg",
-    bR: "https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg",
-    bB: "https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg",
-    bN: "https://upload.wikimedia.org/wikipedia/commons/ef/ef/Chess_ndt45.svg",
-    bP: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg"
+    wK: "https://chessboardjs.com/img/chesspieces/wikipedia/wK.png",
+    wQ: "https://chessboardjs.com/img/chesspieces/wikipedia/wQ.png",
+    wR: "https://chessboardjs.com/img/chesspieces/wikipedia/wR.png",
+    wB: "https://chessboardjs.com/img/chesspieces/wikipedia/wB.png",
+    wN: "https://chessboardjs.com/img/chesspieces/wikipedia/wN.png",
+    wP: "https://chessboardjs.com/img/chesspieces/wikipedia/wP.png",
+    bK: "https://chessboardjs.com/img/chesspieces/wikipedia/bK.png",
+    bQ: "https://chessboardjs.com/img/chesspieces/wikipedia/bQ.png",
+    bR: "https://chessboardjs.com/img/chesspieces/wikipedia/bR.png",
+    bB: "https://chessboardjs.com/img/chesspieces/wikipedia/bB.png",
+    bN: "https://chessboardjs.com/img/chesspieces/wikipedia/bN.png",
+    bP: "https://chessboardjs.com/img/chesspieces/wikipedia/bP.png"
 };
 
 const game = new Chess();
