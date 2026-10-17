@@ -53,7 +53,7 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     border-bottom: 12px solid #444 !important;
 }
 
-.mode-3d .sq span {
+.mode-3d .sq img {
     transform: translateZ(10px) rotateX(-15deg);
     display: inline-block;
 }
@@ -68,9 +68,17 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     justify-content: center;
     align-items: center;
     position: relative;
-    font-size: clamp(32px, 8vw, 48px);
     cursor: pointer;
     user-select: none;
+}
+
+/* Piece SVG Styles for Chess.com Realistic Look */
+.sq img {
+    width: 85%;
+    height: 85%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+    transition: transform 0.15 ease;
 }
 
 /* Themes */
@@ -86,21 +94,10 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
 .theme-gray .light { background: #e0e0e0; }
 .theme-gray .dark { background: #666666; }
 
-/* Piece Colors */
-.white-p {
-    color: #ffffff;
-    text-shadow: 0 0 3px #000000, 0 2px 4px rgba(0,0,0,0.5);
-}
-
-.black-p {
-    color: #000000;
-    text-shadow: 0 0 2px #ffffff, 0 2px 4px rgba(255,255,255,0.3);
-}
-
-.selected { background-color: rgba(255, 255, 100, 0.5) !important; }
+.selected { background-color: rgba(255, 255, 100, 0.65) !important; }
 
 .last-move {
-    background-color: rgba(155, 199, 0, 0.5) !important;
+    background-color: rgba(155, 199, 0, 0.6) !important;
 }
 
 .dot {
@@ -110,14 +107,16 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; color: #eee; }
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.3);
     pointer-events: none;
+    z-index: 2;
 }
 
 .capture-dot {
     position: absolute;
     inset: 10%;
-    border: 5px solid rgba(0, 0, 0, 0.2);
+    border: 5px solid rgba(0, 0, 0, 0.25);
     border-radius: 50%;
     pointer-events: none;
+    z-index: 2;
 }
 
 #status {
@@ -224,12 +223,20 @@ kbd {
 </div>
 
 <script>
-// Unicode Chess Symbols
-const symbols = {
-    wK: "♔", wQ: "♕", wR: "♖",
-    wB: "♗", wN: "♘", wP: "♙",
-    bK: "♚", bQ: "♛", bR: "♜",
-    bB: "♝", bN: "♞", bP: "♟"
+// Vector SVG Pieces for Realistic Chess.com Look
+const pieceImages = {
+    wK: "https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg",
+    wQ: "https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg",
+    wR: "https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg",
+    wB: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg",
+    wN: "https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg",
+    wP: "https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg",
+    bK: "https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg",
+    bQ: "https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg",
+    bR: "https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg",
+    bB: "https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg",
+    bN: "https://upload.wikimedia.org/wikipedia/commons/ef/ef/Chess_ndt45.svg",
+    bP: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg"
 };
 
 const game = new Chess();
@@ -343,10 +350,11 @@ function draw() {
 
             if (piece) {
                 const key = piece.color + piece.type.toUpperCase();
-                const pieceSpan = document.createElement("span");
-                pieceSpan.textContent = symbols[key];
-                pieceSpan.className = piece.color === "w" ? "white-p" : "black-p";
-                square.appendChild(pieceSpan);
+                const pieceImg = document.createElement("img");
+                pieceImg.src = pieceImages[key];
+                pieceImg.alt = key;
+                pieceImg.draggable = false;
+                square.appendChild(pieceImg);
             }
 
             if (selected === name) {
