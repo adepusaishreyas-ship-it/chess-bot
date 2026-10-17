@@ -100,6 +100,11 @@ button, select {
     cursor: pointer;
 }
 
+#undoBtn {
+    background-color: #eab308;
+    color: black;
+}
+
 #hint {
     max-width: 520px;
     color: #ddd;
@@ -120,6 +125,7 @@ button, select {
 
 <div id="controls">
     <button id="newGame">New Game</button>
+    <button id="undoBtn">Undo Move ↩</button>
     <label for="userColor">Play as:</label>
     <select id="userColor">
         <option value="w" selected>White</option>
@@ -135,7 +141,7 @@ button, select {
     </select>
 </div>
 
-<div id="hint" id="hintText">
+<div id="hint">
     You play White. The bot plays Black.<br>
     Powered by Sai Shreyas Adepu
 </div>
@@ -156,8 +162,9 @@ const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const eloEl = document.getElementById("elo");
 const userColorEl = document.getElementById("userColor");
+const undoBtn = document.getElementById("undoBtn");
 
-let userColor = "w"; // 'w' for White, 'b' for Black
+let userColor = "w";
 let selected = null;
 let validMoves = [];
 let thinking = false;
@@ -165,7 +172,7 @@ let engineReady = false;
 let lastMove = null;
 let searchId = 0;
 
-// Load Stockfish dynamically from CDN using a worker Blob to bypass local CORS rules
+// Load Stockfish dynamically from CDN using a worker Blob
 let engine;
 async function initEngine() {
     try {
@@ -216,10 +223,7 @@ async function initEngine() {
                 try {
                     const played = game.move(move);
                     if (played) {
-                        lastMove = {
-                            from: played.from,
-                            to: played.to
-                        };
+                        lastMove = { from: played.from, to: played.to };
                     }
                 } catch (error) {
                     console.error("Invalid engine move:", error);
@@ -246,14 +250,6 @@ async function initEngine() {
 }
 
 initEngine();
-
-function squareName(row, col) {
-    if (userColor === "b") {
-        // Reverse row and col for black perspective
-        return "abcdefgh"[7 - col] + String(row + 1);
-    }
-    return "abcdefgh"[col] + String(8 - row);
-}
 
 function draw() {
     boardEl.innerHTML = "";
@@ -310,7 +306,6 @@ function clickSquare(square) {
         const movingPiece = game.get(selected);
         const move = { from: selected, to: square };
 
-        // Pawn promotion auto-queen logic based on square rank
         const promoRank = userColor === "w" ? "8" : "1";
         if (movingPiece && movingPiece.type === "p" && square[1] === promoRank) {
             move.promotion = "q";
@@ -364,7 +359,6 @@ function requestBotMove() {
     if (strength === "max") {
         engine.postMessage("setoption name UCI_LimitStrength value false");
     } else {
-        engine.postMessage("setoption name UCI_LimitStrength value true");
         engine.postMessage("setoption name UCI_Elo value " + strength);
     }
 
@@ -380,6 +374,42 @@ function requestBotMove() {
     };
 
     engine.addEventListener("message", startSearch);
+}
+
+// --- UNDO MOVE FUNCTIONALITY ---
+function undoMove() {
+    if (thinking) return; // Prevent undoing while bot is actively thinking
+
+    const history = game.history({ verbose: true });
+
+    // Case 1: Player's turn, take back bot's move and player's move (2 steps)
+    if (game.turn() === userColor && history.length >= 2) {
+        game.undo(); // Undo bot's move
+        game.undo(); // Undo player's move
+    } 
+    // Case 2: Only 1 move has been played total in game (e.g. Bot played move 1 as White)
+    else if (history.length === 1) {
+        game.undo();
+    }
+
+    // Update last move highlight
+    const updatedHistory = game.history({ verbose: true });
+    if (updatedHistory.length > 0) {
+        const previous = updatedHistory[updatedHistory.length - 1];
+        lastMove = { from: previous.from, to: previous.to };
+    } else {
+        lastMove = null;
+    }
+
+    selected = null;
+    validMoves = [];
+    draw();
+    updateStatus();
+
+    // If it's now the bot's turn after undoing (e.g., if you play Black), trigger bot
+    if (game.turn() !== userColor && !game.isGameOver()) {
+        requestBotMove();
+    }
 }
 
 function updateStatus() {
@@ -412,13 +442,13 @@ function resetGame() {
     draw();
     updateStatus();
 
-    // If user selected Black, the bot (White) plays first automatically
     if (userColor === "b" && engineReady) {
         requestBotMove();
     }
 }
 
 document.getElementById("newGame").addEventListener("click", resetGame);
+undoBtn.addEventListener("click", undoMove);
 userColorEl.addEventListener("change", resetGame);
 
 eloEl.addEventListener("change", function() {
