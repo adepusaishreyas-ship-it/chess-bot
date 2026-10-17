@@ -16,21 +16,55 @@ body {
     min-height: 100vh;
     margin: 0;
     padding: 15px;
-    background: #222;
+    background: #1a1a1a;
     color: white;
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     gap: 12px;
 }
 
-h2 { margin: 0; }
+h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
+
+#board-container {
+    perspective: 1000px;
+    padding: 20px;
+}
 
 #board {
     display: grid;
     grid-template-columns: repeat(8, min(10.5vw, 66px));
     grid-template-rows: repeat(8, min(10.5vw, 66px));
-    border: 4px solid white;
-    box-shadow: 0 10px 25px #0008;
-    transition: all 0.3s ease;
+    border: 4px solid #fff;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* --- VIEW MODES --- */
+/* 2D Modern */
+.mode-2d {
+    transform: rotateX(0deg);
+}
+
+/* 3D Board Perspective */
+.mode-3d {
+    transform: rotateX(32deg) rotateZ(0deg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 15px 15px rgba(0, 0, 0, 0.5);
+    border-bottom: 12px solid #333 !important;
+}
+
+.mode-3d .sq {
+    transform-style: preserve-3d;
+}
+
+.mode-3d .white-p, .mode-3d .black-p {
+    transform: translateZ(10px) rotateX(-15deg);
+    text-shadow: 0 8px 10px rgba(0,0,0,0.6);
+    display: inline-block;
+}
+
+/* Classic Normal */
+.mode-classic {
+    transform: rotateX(0deg);
+    border-color: #8b5a2b !important;
 }
 
 .sq {
@@ -43,19 +77,16 @@ h2 { margin: 0; }
     user-select: none;
 }
 
-/* Default Wood Theme */
+/* Themes */
 .theme-wood .light { background: #f0d9b5; }
 .theme-wood .dark { background: #b58863; }
 
-/* Classic Green Theme */
 .theme-green .light { background: #eeeed2; }
 .theme-green .dark { background: #769656; }
 
-/* Midnight Blue Theme */
 .theme-blue .light { background: #dee3e6; }
 .theme-blue .dark { background: #4b7399; }
 
-/* Grayscale Theme */
 .theme-gray .light { background: #e0e0e0; }
 .theme-gray .dark { background: #666666; }
 
@@ -109,397 +140,4 @@ h2 { margin: 0; }
 button, select {
     padding: 9px 12px;
     border: 0;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-#hint {
-    max-width: 520px;
-    color: #ddd;
-    text-align: center;
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-kbd {
-    background: #444;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid #666;
-    font-family: monospace;
-}
-</style>
-</head>
-
-<body>
-
-<h2>Chess vs Shreyas Bot</h2>
-
-<div id="board" class="theme-wood"></div>
-
-<div id="status">Loading chess engine...</div>
-
-<div id="controls">
-    <button id="newGame">New Game</button>
-    
-    <label for="userColor">Play as:</label>
-    <select id="userColor">
-        <option value="w" selected>White</option>
-        <option value="b">Black</option>
-    </select>
-
-    <label for="boardTheme">Theme:</label>
-    <select id="boardTheme">
-        <option value="theme-wood" selected>Wood</option>
-        <option value="theme-green">Green</option>
-        <option value="theme-blue">Blue</option>
-        <option value="theme-gray">Gray</option>
-    </select>
-
-    <label for="elo">Bot Strength:</label>
-    <select id="elo">
-        <option value="1600">1600</option>
-        <option value="1800">1800</option>
-        <option value="2000" selected>2000</option>
-        <option value="2200">2200</option>
-        <option value="max">Maximum</option>
-    </select>
-</div>
-
-<div id="hint">
-    Press <kbd>←</kbd> (Left Arrow) to undo move | Press <kbd>X</kbd> to flip board<br>
-    Powered by Sai Shreyas Adepu
-</div>
-
-<script type="module">
-import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-
-const symbols = {
-    wK: "♔", wQ: "♕", wR: "♖",
-    wB: "♗", wN: "♘", wP: "♙",
-    bK: "♚", bQ: "♛", bR: "♜",
-    bB: "♝", bN: "♞", bP: "♟"
-};
-
-const game = new Chess();
-
-const boardEl = document.getElementById("board");
-const statusEl = document.getElementById("status");
-const eloEl = document.getElementById("elo");
-const userColorEl = document.getElementById("userColor");
-const boardThemeEl = document.getElementById("boardTheme");
-
-let userColor = "w";
-let boardFlipped = false;
-let selected = null;
-let validMoves = [];
-let thinking = false;
-let engineReady = false;
-let lastMove = null;
-let searchId = 0;
-
-// Load Stockfish dynamically
-let engine;
-async function initEngine() {
-    try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js");
-        const stockfishCode = await response.text();
-        const blob = new Blob([stockfishCode], { type: "application/javascript" });
-        engine = new Worker(URL.createObjectURL(blob));
-
-        engine.onmessage = function(event) {
-            const line = String(event.data || "").trim();
-
-            if (line === "uciok") {
-                engine.postMessage("setoption name UCI_LimitStrength value true");
-                engine.postMessage("setoption name UCI_Elo value 2000");
-                engine.postMessage("isready");
-                return;
-            }
-
-            if (line === "readyok") {
-                engineReady = true;
-                updateStatus();
-                if (game.turn() !== userColor) {
-                    requestBotMove();
-                }
-                return;
-            }
-
-            if (line.startsWith("bestmove ")) {
-                const moveText = line.split(/\s+/)[1];
-
-                if (!thinking) return;
-
-                if (!moveText || moveText === "(none)") {
-                    thinking = false;
-                    updateStatus();
-                    return;
-                }
-
-                const move = {
-                    from: moveText.slice(0, 2),
-                    to: moveText.slice(2, 4)
-                };
-
-                if (moveText.length >= 5) {
-                    move.promotion = moveText[4].toLowerCase();
-                }
-
-                try {
-                    const played = game.move(move);
-                    if (played) {
-                        lastMove = { from: played.from, to: played.to };
-                    }
-                } catch (error) {
-                    console.error("Invalid engine move:", error);
-                }
-
-                thinking = false;
-                selected = null;
-                validMoves = [];
-
-                draw();
-                updateStatus();
-            }
-        };
-
-        engine.onerror = function(err) {
-            console.error(err);
-            statusEl.textContent = "Engine failed to load. Check your internet connection.";
-        };
-
-        engine.postMessage("uci");
-    } catch (e) {
-        statusEl.textContent = "Engine failed to load. CDN access restricted.";
-    }
-}
-
-initEngine();
-
-function draw() {
-    boardEl.innerHTML = "";
-    const position = game.board();
-
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const row = boardFlipped ? 7 - r : r;
-            const col = boardFlipped ? 7 - c : c;
-            const name = "abcdefgh"[col] + String(8 - row);
-            const piece = position[row][col];
-
-            const square = document.createElement("div");
-            square.className = "sq " + ((row + col) % 2 === 0 ? "light" : "dark");
-
-            if (piece) {
-                const key = piece.color + piece.type.toUpperCase();
-                square.textContent = symbols[key];
-                square.classList.add(piece.color === "w" ? "white-p" : "black-p");
-            }
-
-            if (selected === name) {
-                square.classList.add("selected");
-            }
-
-            if (lastMove && (lastMove.from === name || lastMove.to === name)) {
-                square.classList.add("last-move");
-            }
-
-            const destination = validMoves.find(move => move.to === name);
-            if (destination) {
-                const marker = document.createElement("div");
-                marker.className = piece ? "capture-dot" : "dot";
-                square.appendChild(marker);
-            }
-
-            square.addEventListener("click", function() {
-                clickSquare(name);
-            });
-
-            boardEl.appendChild(square);
-        }
-    }
-}
-
-function clickSquare(square) {
-    if (thinking || !engineReady || game.isGameOver() || game.turn() !== userColor) {
-        return;
-    }
-
-    const chosenMove = validMoves.find(move => move.to === square);
-
-    if (selected && chosenMove) {
-        const movingPiece = game.get(selected);
-        const move = { from: selected, to: square };
-
-        const promoRank = userColor === "w" ? "8" : "1";
-        if (movingPiece && movingPiece.type === "p" && square[1] === promoRank) {
-            move.promotion = "q";
-        }
-
-        try {
-            const played = game.move(move);
-            lastMove = { from: played.from, to: played.to };
-        } catch (error) {
-            selected = null;
-            validMoves = [];
-            draw();
-            return;
-        }
-
-        selected = null;
-        validMoves = [];
-
-        draw();
-        updateStatus();
-
-        if (!game.isGameOver()) {
-            requestBotMove();
-        }
-
-        return;
-    }
-
-    const piece = game.get(square);
-    if (piece && piece.color === userColor) {
-        selected = square;
-        validMoves = game.moves({ square: square, verbose: true });
-    } else {
-        selected = null;
-        validMoves = [];
-    }
-
-    draw();
-}
-
-function requestBotMove() {
-    if (!engineReady || game.isGameOver() || game.turn() === userColor) {
-        return;
-    }
-
-    thinking = true;
-    searchId++;
-    statusEl.textContent = "Bot is thinking...";
-
-    const strength = eloEl.value;
-    if (strength === "max") {
-        engine.postMessage("setoption name UCI_LimitStrength value false");
-    } else {
-        engine.postMessage("setoption name UCI_LimitStrength value true");
-        engine.postMessage("setoption name UCI_Elo value " + strength);
-    }
-
-    engine.postMessage("isready");
-
-    const startSearch = function(event) {
-        if (String(event.data || "").trim() !== "readyok") return;
-        engine.removeEventListener("message", startSearch);
-
-        if (!thinking || game.isGameOver()) return;
-        engine.postMessage("position fen " + game.fen());
-        engine.postMessage("go movetime 1500");
-    };
-
-    engine.addEventListener("message", startSearch);
-}
-
-// --- UNDO MOVE LOGIC ---
-function undoMove() {
-    if (thinking) return;
-
-    const history = game.history({ verbose: true });
-
-    if (game.turn() === userColor && history.length >= 2) {
-        game.undo(); // Undo bot move
-        game.undo(); // Undo player move
-    } else if (history.length === 1) {
-        game.undo();
-    }
-
-    const updatedHistory = game.history({ verbose: true });
-    if (updatedHistory.length > 0) {
-        const previous = updatedHistory[updatedHistory.length - 1];
-        lastMove = { from: previous.from, to: previous.to };
-    } else {
-        lastMove = null;
-    }
-
-    selected = null;
-    validMoves = [];
-    draw();
-    updateStatus();
-
-    if (game.turn() !== userColor && !game.isGameOver()) {
-        requestBotMove();
-    }
-}
-
-// --- KEYBOARD SHORTCUT LISTENER ---
-document.addEventListener("keydown", function(e) {
-    // Left Arrow Key for Undo
-    if (e.key === "ArrowLeft") {
-        undoMove();
-    }
-    // 'X' or 'x' Key to Flip Board
-    if (e.key === "x" || e.key === "X") {
-        boardFlipped = !boardFlipped;
-        draw();
-    }
-});
-
-function updateStatus() {
-    if (game.isCheckmate()) {
-        statusEl.textContent = game.turn() === userColor ? "Checkmate! The bot wins." : "Checkmate! You win!";
-        return;
-    }
-    if (game.isStalemate()) { statusEl.textContent = "Draw by stalemate."; return; }
-    if (game.isThreefoldRepetition()) { statusEl.textContent = "Draw by threefold repetition."; return; }
-    if (game.isInsufficientMaterial()) { statusEl.textContent = "Draw: insufficient material."; return; }
-    if (game.isDraw()) { statusEl.textContent = "The game is a draw."; return; }
-    if (thinking) { statusEl.textContent = "Bot is thinking..."; return; }
-    if (!engineReady) { statusEl.textContent = "Loading chess engine..."; return; }
-    if (game.isCheck()) {
-        statusEl.textContent = game.turn() === userColor ? "Your king is in check!" : "The bot's king is in check!";
-        return;
-    }
-    statusEl.textContent = game.turn() === userColor ? `Your turn (${userColor === 'w' ? 'White' : 'Black'})` : "Bot's turn";
-}
-
-function resetGame() {
-    userColor = userColorEl.value;
-    boardFlipped = userColor === "b";
-    thinking = false;
-    searchId++;
-    if (engineReady) engine.postMessage("stop");
-    game.reset();
-    selected = null;
-    validMoves = [];
-    lastMove = null;
-    draw();
-    updateStatus();
-
-    if (userColor === "b" && engineReady) {
-        requestBotMove();
-    }
-}
-
-// Event Listeners
-document.getElementById("newGame").addEventListener("click", resetGame);
-userColorEl.addEventListener("change", resetGame);
-
-// Board Theme Switcher
-boardThemeEl.addEventListener("change", function() {
-    boardEl.className = boardThemeEl.value;
-});
-
-eloEl.addEventListener("change", function() {
-    updateStatus();
-});
-
-draw();
-updateStatus();
-</script>
-
-</body>
-</html>
+    border-radius: 6px
