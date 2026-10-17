@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chess vs Shreyas Bot</title>
 
+<!-- Chess.js library CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
 <style>
 * { box-sizing: border-box; }
 
@@ -26,7 +29,7 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
 
 #board-container {
     perspective: 1000px;
-    padding: 20px;
+    padding: 15px;
 }
 
 #board {
@@ -140,4 +143,416 @@ h2 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
 button, select {
     padding: 9px 12px;
     border: 0;
-    border-radius: 6px
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #333;
+    color: white;
+}
+
+button:hover, select:hover {
+    background: #444;
+}
+
+#newGame {
+    background: #2563eb;
+}
+
+#newGame:hover {
+    background: #1d4ed8;
+}
+
+#hint {
+    max-width: 520px;
+    color: #ddd;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+kbd {
+    background: #444;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #666;
+    font-family: monospace;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Chess vs Shreyas Bot</h2>
+
+<div id="board-container">
+    <div id="board" class="theme-wood mode-2d"></div>
+</div>
+
+<div id="status">Loading chess engine...</div>
+
+<div id="controls">
+    <button id="newGame">New Game</button>
+    
+    <label for="boardMode">View:</label>
+    <select id="boardMode">
+        <option value="mode-2d" selected>2D Modern</option>
+        <option value="mode-3d">3D Board</option>
+        <option value="mode-classic">Classic Normal</option>
+    </select>
+
+    <label for="userColor">Play as:</label>
+    <select id="userColor">
+        <option value="w" selected>White</option>
+        <option value="b">Black</option>
+    </select>
+
+    <label for="boardTheme">Theme:</label>
+    <select id="boardTheme">
+        <option value="theme-wood" selected>Wood</option>
+        <option value="theme-green">Green</option>
+        <option value="theme-blue">Blue</option>
+        <option value="theme-gray">Gray</option>
+    </select>
+
+    <label for="elo">Bot Strength:</label>
+    <select id="elo">
+        <option value="1600">1600</option>
+        <option value="1800">1800</option>
+        <option value="2000" selected>2000</option>
+        <option value="2200">2200</option>
+        <option value="max">Maximum</option>
+    </select>
+</div>
+
+<div id="hint">
+    Press <kbd>←</kbd> (Left Arrow) to undo move | Press <kbd>X</kbd> to flip board<br>
+    Powered by Sai Shreyas Adepu
+</div>
+
+<script>
+const symbols = {
+    wK: "♔", wQ: "♕", wR: "♖",
+    wB: "♗", wN: "♘", wP: "♙",
+    bK: "♚", bQ: "♛", bR: "♜",
+    bB: "♝", bN: "♞", bP: "♟"
+};
+
+const game = new Chess();
+
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const eloEl = document.getElementById("elo");
+const userColorEl = document.getElementById("userColor");
+const boardThemeEl = document.getElementById("boardTheme");
+const boardModeEl = document.getElementById("boardMode");
+
+let userColor = "w";
+let boardFlipped = false;
+let selected = null;
+let validMoves = [];
+let thinking = false;
+let engineReady = false;
+let lastMove = null;
+let searchId = 0;
+
+// Initialize Stockfish worker cleanly
+let engine;
+function initEngine() {
+    try {
+        const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        engine = new Worker(URL.createObjectURL(blob));
+
+        engine.onmessage = function(event) {
+            const line = String(event.data || "").trim();
+
+            if (line === "uciok") {
+                engine.postMessage("setoption name UCI_LimitStrength value true");
+                engine.postMessage("setoption name UCI_Elo value 2000");
+                engine.postMessage("isready");
+                return;
+            }
+
+            if (line === "readyok") {
+                engineReady = true;
+                updateStatus();
+                if (game.turn() !== userColor) {
+                    requestBotMove();
+                }
+                return;
+            }
+
+            if (line.startsWith("bestmove ")) {
+                const moveText = line.split(/\s+/)[1];
+
+                if (!thinking) return;
+
+                if (!moveText || moveText === "(none)") {
+                    thinking = false;
+                    updateStatus();
+                    return;
+                }
+
+                const move = {
+                    from: moveText.slice(0, 2),
+                    to: moveText.slice(2, 4)
+                };
+
+                if (moveText.length >= 5) {
+                    move.promotion = moveText[4].toLowerCase();
+                }
+
+                try {
+                    const played = game.move(move);
+                    if (played) {
+                        lastMove = { from: played.from, to: played.to };
+                    }
+                } catch (error) {
+                    console.error("Invalid engine move:", error);
+                }
+
+                thinking = false;
+                selected = null;
+                validMoves = [];
+
+                draw();
+                updateStatus();
+            }
+        };
+
+        engine.onerror = function(err) {
+            console.error(err);
+            statusEl.textContent = "Engine failed to load. Check internet connection.";
+        };
+
+        engine.postMessage("uci");
+    } catch (e) {
+        statusEl.textContent = "Engine restriction error.";
+    }
+}
+
+initEngine();
+
+function draw() {
+    boardEl.innerHTML = "";
+    const position = game.board();
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const row = boardFlipped ? 7 - r : r;
+            const col = boardFlipped ? 7 - c : c;
+            const name = "abcdefgh"[col] + String(8 - row);
+            const piece = position[row][col];
+
+            const square = document.createElement("div");
+            square.className = "sq " + ((row + col) % 2 === 0 ? "light" : "dark");
+
+            if (piece) {
+                const key = piece.color + piece.type.toUpperCase();
+                const pieceSpan = document.createElement("span");
+                pieceSpan.textContent = symbols[key];
+                pieceSpan.className = piece.color === "w" ? "white-p" : "black-p";
+                square.appendChild(pieceSpan);
+            }
+
+            if (selected === name) {
+                square.classList.add("selected");
+            }
+
+            if (lastMove && (lastMove.from === name || lastMove.to === name)) {
+                square.classList.add("last-move");
+            }
+
+            const destination = validMoves.find(move => move.to === name);
+            if (destination) {
+                const marker = document.createElement("div");
+                marker.className = piece ? "capture-dot" : "dot";
+                square.appendChild(marker);
+            }
+
+            square.addEventListener("click", function() {
+                clickSquare(name);
+            });
+
+            boardEl.appendChild(square);
+        }
+    }
+}
+
+function clickSquare(square) {
+    if (thinking || !engineReady || game.game_over() || game.turn() !== userColor) {
+        return;
+    }
+
+    const chosenMove = validMoves.find(move => move.to === square);
+
+    if (selected && chosenMove) {
+        const movingPiece = game.get(selected);
+        const move = { from: selected, to: square };
+
+        const promoRank = userColor === "w" ? "8" : "1";
+        if (movingPiece && movingPiece.type === "p" && square[1] === promoRank) {
+            move.promotion = "q";
+        }
+
+        try {
+            const played = game.move(move);
+            lastMove = { from: played.from, to: played.to };
+        } catch (error) {
+            selected = null;
+            validMoves = [];
+            draw();
+            return;
+        }
+
+        selected = null;
+        validMoves = [];
+
+        draw();
+        updateStatus();
+
+        if (!game.game_over()) {
+            requestBotMove();
+        }
+
+        return;
+    }
+
+    const piece = game.get(square);
+    if (piece && piece.color === userColor) {
+        selected = square;
+        validMoves = game.moves({ square: square, verbose: true });
+    } else {
+        selected = null;
+        validMoves = [];
+    }
+
+    draw();
+}
+
+function requestBotMove() {
+    if (!engineReady || game.game_over() || game.turn() === userColor) {
+        return;
+    }
+
+    thinking = true;
+    searchId++;
+    statusEl.textContent = "Bot is thinking...";
+
+    const strength = eloEl.value;
+    if (strength === "max") {
+        engine.postMessage("setoption name UCI_LimitStrength value false");
+    } else {
+        engine.postMessage("setoption name UCI_LimitStrength value true");
+        engine.postMessage("setoption name UCI_Elo value " + strength);
+    }
+
+    engine.postMessage("isready");
+
+    const startSearch = function(event) {
+        if (String(event.data || "").trim() !== "readyok") return;
+        engine.removeEventListener("message", startSearch);
+
+        if (!thinking || game.game_over()) return;
+        engine.postMessage("position fen " + game.fen());
+        engine.postMessage("go movetime 1500");
+    };
+
+    engine.addEventListener("message", startSearch);
+}
+
+function undoMove() {
+    if (thinking) return;
+
+    const history = game.history({ verbose: true });
+
+    if (game.turn() === userColor && history.length >= 2) {
+        game.undo();
+        game.undo();
+    } else if (history.length === 1) {
+        game.undo();
+    }
+
+    const updatedHistory = game.history({ verbose: true });
+    if (updatedHistory.length > 0) {
+        const previous = updatedHistory[updatedHistory.length - 1];
+        lastMove = { from: previous.from, to: previous.to };
+    } else {
+        lastMove = null;
+    }
+
+    selected = null;
+    validMoves = [];
+    draw();
+    updateStatus();
+
+    if (game.turn() !== userColor && !game.game_over()) {
+        requestBotMove();
+    }
+}
+
+document.addEventListener("keydown", function(e) {
+    if (e.key === "ArrowLeft") {
+        undoMove();
+    }
+    if (e.key === "x" || e.key === "X") {
+        boardFlipped = !boardFlipped;
+        draw();
+    }
+});
+
+function updateStatus() {
+    if (game.in_checkmate()) {
+        statusEl.textContent = game.turn() === userColor ? "Checkmate! The bot wins." : "Checkmate! You win!";
+        return;
+    }
+    if (game.in_stalemate()) { statusEl.textContent = "Draw by stalemate."; return; }
+    if (game.in_threefold_repetition()) { statusEl.textContent = "Draw by threefold repetition."; return; }
+    if (game.insufficient_material()) { statusEl.textContent = "Draw: insufficient material."; return; }
+    if (game.in_draw()) { statusEl.textContent = "The game is a draw."; return; }
+    if (thinking) { statusEl.textContent = "Bot is thinking..."; return; }
+    if (!engineReady) { statusEl.textContent = "Loading chess engine..."; return; }
+    if (game.in_check()) {
+        statusEl.textContent = game.turn() === userColor ? "Your king is in check!" : "The bot's king is in check!";
+        return;
+    }
+    statusEl.textContent = game.turn() === userColor ? `Your turn (${userColor === 'w' ? 'White' : 'Black'})` : "Bot's turn";
+}
+
+function resetGame() {
+    userColor = userColorEl.value;
+    boardFlipped = userColor === "b";
+    thinking = false;
+    searchId++;
+    if (engineReady) engine.postMessage("stop");
+    game.reset();
+    selected = null;
+    validMoves = [];
+    lastMove = null;
+    draw();
+    updateStatus();
+
+    if (userColor === "b" && engineReady) {
+        requestBotMove();
+    }
+}
+
+function updateBoardClasses() {
+    boardEl.className = `${boardThemeEl.value} ${boardModeEl.value}`;
+}
+
+document.getElementById("newGame").addEventListener("click", resetGame);
+userColorEl.addEventListener("change", resetGame);
+boardThemeEl.addEventListener("change", updateBoardClasses);
+boardModeEl.addEventListener("change", updateBoardClasses);
+
+eloEl.addEventListener("change", function() {
+    updateStatus();
+});
+
+draw();
+updateStatus();
+</script>
+
+</body>
+</html>
