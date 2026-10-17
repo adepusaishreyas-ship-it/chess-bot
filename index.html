@@ -30,6 +30,7 @@ h2 { margin: 0; }
     grid-template-rows: repeat(8, min(10.5vw, 66px));
     border: 4px solid white;
     box-shadow: 0 10px 25px #0008;
+    transition: all 0.3s ease;
 }
 
 .sq {
@@ -42,8 +43,21 @@ h2 { margin: 0; }
     user-select: none;
 }
 
-.light { background: #f0d9b5; }
-.dark { background: #b58863; }
+/* Default Wood Theme */
+.theme-wood .light { background: #f0d9b5; }
+.theme-wood .dark { background: #b58863; }
+
+/* Classic Green Theme */
+.theme-green .light { background: #eeeed2; }
+.theme-green .dark { background: #769656; }
+
+/* Midnight Blue Theme */
+.theme-blue .light { background: #dee3e6; }
+.theme-blue .dark { background: #4b7399; }
+
+/* Grayscale Theme */
+.theme-gray .light { background: #e0e0e0; }
+.theme-gray .dark { background: #666666; }
 
 .white-p {
     color: white;
@@ -100,17 +114,20 @@ button, select {
     cursor: pointer;
 }
 
-#undoBtn {
-    background-color: #eab308;
-    color: black;
-}
-
 #hint {
     max-width: 520px;
     color: #ddd;
     text-align: center;
     font-size: 13px;
     line-height: 1.5;
+}
+
+kbd {
+    background: #444;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #666;
+    font-family: monospace;
 }
 </style>
 </head>
@@ -119,18 +136,27 @@ button, select {
 
 <h2>Chess vs Shreyas Bot</h2>
 
-<div id="board"></div>
+<div id="board" class="theme-wood"></div>
 
 <div id="status">Loading chess engine...</div>
 
 <div id="controls">
     <button id="newGame">New Game</button>
-    <button id="undoBtn">Undo Move ↩</button>
+    
     <label for="userColor">Play as:</label>
     <select id="userColor">
         <option value="w" selected>White</option>
         <option value="b">Black</option>
     </select>
+
+    <label for="boardTheme">Theme:</label>
+    <select id="boardTheme">
+        <option value="theme-wood" selected>Wood</option>
+        <option value="theme-green">Green</option>
+        <option value="theme-blue">Blue</option>
+        <option value="theme-gray">Gray</option>
+    </select>
+
     <label for="elo">Bot Strength:</label>
     <select id="elo">
         <option value="1600">1600</option>
@@ -142,7 +168,7 @@ button, select {
 </div>
 
 <div id="hint">
-    You play White. The bot plays Black.<br>
+    Press <kbd>←</kbd> (Left Arrow) to undo move | Press <kbd>X</kbd> to flip board<br>
     Powered by Sai Shreyas Adepu
 </div>
 
@@ -162,9 +188,10 @@ const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const eloEl = document.getElementById("elo");
 const userColorEl = document.getElementById("userColor");
-const undoBtn = document.getElementById("undoBtn");
+const boardThemeEl = document.getElementById("boardTheme");
 
 let userColor = "w";
+let boardFlipped = false;
 let selected = null;
 let validMoves = [];
 let thinking = false;
@@ -172,7 +199,7 @@ let engineReady = false;
 let lastMove = null;
 let searchId = 0;
 
-// Load Stockfish dynamically from CDN using a worker Blob
+// Load Stockfish dynamically
 let engine;
 async function initEngine() {
     try {
@@ -257,8 +284,8 @@ function draw() {
 
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-            const row = userColor === "b" ? 7 - r : r;
-            const col = userColor === "b" ? 7 - c : c;
+            const row = boardFlipped ? 7 - r : r;
+            const col = boardFlipped ? 7 - c : c;
             const name = "abcdefgh"[col] + String(8 - row);
             const piece = position[row][col];
 
@@ -359,6 +386,7 @@ function requestBotMove() {
     if (strength === "max") {
         engine.postMessage("setoption name UCI_LimitStrength value false");
     } else {
+        engine.postMessage("setoption name UCI_LimitStrength value true");
         engine.postMessage("setoption name UCI_Elo value " + strength);
     }
 
@@ -376,23 +404,19 @@ function requestBotMove() {
     engine.addEventListener("message", startSearch);
 }
 
-// --- UNDO MOVE FUNCTIONALITY ---
+// --- UNDO MOVE LOGIC ---
 function undoMove() {
-    if (thinking) return; // Prevent undoing while bot is actively thinking
+    if (thinking) return;
 
     const history = game.history({ verbose: true });
 
-    // Case 1: Player's turn, take back bot's move and player's move (2 steps)
     if (game.turn() === userColor && history.length >= 2) {
-        game.undo(); // Undo bot's move
-        game.undo(); // Undo player's move
-    } 
-    // Case 2: Only 1 move has been played total in game (e.g. Bot played move 1 as White)
-    else if (history.length === 1) {
+        game.undo(); // Undo bot move
+        game.undo(); // Undo player move
+    } else if (history.length === 1) {
         game.undo();
     }
 
-    // Update last move highlight
     const updatedHistory = game.history({ verbose: true });
     if (updatedHistory.length > 0) {
         const previous = updatedHistory[updatedHistory.length - 1];
@@ -406,11 +430,23 @@ function undoMove() {
     draw();
     updateStatus();
 
-    // If it's now the bot's turn after undoing (e.g., if you play Black), trigger bot
     if (game.turn() !== userColor && !game.isGameOver()) {
         requestBotMove();
     }
 }
+
+// --- KEYBOARD SHORTCUT LISTENER ---
+document.addEventListener("keydown", function(e) {
+    // Left Arrow Key for Undo
+    if (e.key === "ArrowLeft") {
+        undoMove();
+    }
+    // 'X' or 'x' Key to Flip Board
+    if (e.key === "x" || e.key === "X") {
+        boardFlipped = !boardFlipped;
+        draw();
+    }
+});
 
 function updateStatus() {
     if (game.isCheckmate()) {
@@ -432,6 +468,7 @@ function updateStatus() {
 
 function resetGame() {
     userColor = userColorEl.value;
+    boardFlipped = userColor === "b";
     thinking = false;
     searchId++;
     if (engineReady) engine.postMessage("stop");
@@ -447,9 +484,14 @@ function resetGame() {
     }
 }
 
+// Event Listeners
 document.getElementById("newGame").addEventListener("click", resetGame);
-undoBtn.addEventListener("click", undoMove);
 userColorEl.addEventListener("change", resetGame);
+
+// Board Theme Switcher
+boardThemeEl.addEventListener("change", function() {
+    boardEl.className = boardThemeEl.value;
+});
 
 eloEl.addEventListener("change", function() {
     updateStatus();
